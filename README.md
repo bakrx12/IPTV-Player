@@ -1,5 +1,5 @@
 # IPTV WEB Player | Web App
-#### Author: Bocaletto Luca
+#### Original Author: Bocaletto Luca
 
 [![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/Guide/HTML/HTML5)
 [![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/CSS)
@@ -39,22 +39,20 @@
     • **Back Button:** Toggle Picture-in-Picture  
 - **Visual Feedback:** A spinner overlay is displayed during stream loading.
 
-## Technologies Used
-
-- **HTML5**
-- **CSS3**
-- **JavaScript (ES6+)**
-- **[HLS.js](https://cdn.jsdelivr.net/npm/hls.js@latest)**
-
 ## Installation
 
 1. Clone the repository:
-git clone https://github.com/bocaletto-luca/IPTV-WEB-Player-JS.git
+git clone
 
 2. Navigate to the project directory:
-cd IPTV-WEB-Player
+cd IPTV-Player
 
 3. Open the `index.html` file in your web browser or run a local web server for full functionality.
+
+## Screenshots
+
+<img width="1920" height="1009" alt="image" src="https://github.com/user-attachments/assets/7cd7ae18-9610-4e8b-857e-b6139c0cace0" />
+
 
 ## Usage
 
