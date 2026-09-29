@@ -1,278 +1,287 @@
-    /********** VARIABILI GLOBALI & FUNZIONI PER PLAYER / CANALI **********/
-    /*********************** Author: Bocaletto Luca ***********************/
-    let hls; // Istanza globale per Hls.js
-    const video = document.getElementById("videoPlayer");
-    const spinner = document.getElementById("spinner");
-    const channelsContainer = document.getElementById("channelsContainer");
-    const fileInput = document.getElementById("m3uFile");
-    
-    let channels = []; // Array degli elementi canale
-    let currentSelectedIndex = -1;
-    
-    function showSpinner(show = true) {
-      spinner.style.display = show ? "flex" : "none";
-    }
-    
-    function playChannel(streamUrl) {
-      console.log("Caricamento stream: " + streamUrl);
-      showSpinner(true);
+let hls;
+const video = document.getElementById("videoPlayer");
+const spinner = document.getElementById("spinner");
+const channelsContainer = document.getElementById("channelsContainer");
+const fileInput = document.getElementById("m3uFile");
+const uploadFileBtn = document.getElementById("uploadFileBtn");
+const m3uUrlInput = document.getElementById("m3uUrlInput");
+const loadUrlBtn = document.getElementById("loadUrlBtn");
+const searchInput = document.getElementById("searchInput");
+const channelCount = document.getElementById("channelCount");
+
+let rawChannelData = [];
+let visibleChannels = [];
+let currentSelectedIndex = -1;
+
+function showSpinner(show = true) {
+  if (spinner) {
+    spinner.style.display = show ? "flex" : "none";
+  }
+}
+
+function playChannel(streamUrl) {
+  showSpinner(true);
+  
+  if (hls) {
+    hls.destroy();
+    hls = null;
+  }
+  
+  if (Hls.isSupported()) {
+    hls = new Hls({ enableWorker: true });
+    hls.loadSource(streamUrl);
+    hls.attachMedia(video);
+    hls.once(Hls.Events.MANIFEST_PARSED, () => {
+      video.play().then(() => showSpinner(false)).catch(() => showSpinner(false));
+    });
+    hls.on(Hls.Events.ERROR, () => showSpinner(false));
+  } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = streamUrl;
+    video.play().then(() => showSpinner(false)).catch(() => showSpinner(false));
+  } else {
+    alert("HLS playback is not supported in this browser.");
+    showSpinner(false);
+  }
+}
+
+// Clean dirty title strings and extract metadata tags + quality resolution
+function cleanTitleAndParseTags(extinfLine) {
+  let title = "IPTV Channel";
+  let country = "";
+  let category = "";
+  let language = "";
+  let quality = "";
+
+  const countryMatch = extinfLine.match(/tvg-country="([^"]+)"/i);
+  if (countryMatch) country = countryMatch[1].trim();
+
+  const groupMatch = extinfLine.match(/group-title="([^"]+)"/i);
+  if (groupMatch) category = groupMatch[1].trim();
+
+  const langMatch = extinfLine.match(/tvg-language="([^"]+)"/i);
+  if (langMatch) language = langMatch[1].trim();
+
+  // Extract title after last comma
+  const commaIndex = extinfLine.lastIndexOf(",");
+  if (commaIndex !== -1) {
+    title = extinfLine.substring(commaIndex + 1).trim();
+  }
+
+  // Sanitize title noise
+  title = title.replace(/(?:like\s+)?Gecko\)\s*Chrome\/[0-9.]+\s*Safari\/[0-9.]+/gi, "");
+  title = title.replace(/group-title="[^"]*"/gi, "");
+  title = title.replace(/tvg-[a-zA-Z0-9-]+="[^"]*"/gi, "");
+
+  // Extract resolution / quality including interlaced (e.g. 576i, 1080i, 1080p, 4K, HD)
+  const qualityMatch = title.match(/\b(\d{3,4}[pi]|4K|8K|FHD|HD|SD|UHD)\b/i);
+  if (qualityMatch) {
+    quality = qualityMatch[0];
+  }
+  else
+  {
+    quality = "N/A"
+  }
+
+
+  title = title
+    .replace(/\s*[\(\[]\s*(\d{3,4}[pi]|4K|8K|FHD|HD|SD|UHD)\s*[\)\]]/gi, "")
+    .replace(/\b(\d{3,4}[pi])\b/gi, "")
+    .replace(/\s*[\(\[]\s*[\)\]]/g, "") // Remove remaining empty parentheses () or brackets []
+    .replace(/^["'\s,]+|["'\s,]+$/g, "")
+    .trim();
+
+  return { title: title || "IPTV Channel", country, category, language, quality };
+}
+
+function parseChannelList(content) {
+  const lines = content.split("\n");
+  rawChannelData = [];
+  let currentMeta = null;
+
+  lines.forEach(line => {
+    line = line.trim();
+    if (!line) return;
+
+    if (line.startsWith("#EXTINF")) {
+      currentMeta = cleanTitleAndParseTags(line);
+    } else if (!line.startsWith("#")) {
+      // Captures any stream URL (http, https, rtmp, udp, relative, etc.)
+      const streamUrl = line;
+      const meta = currentMeta || { title: "IPTV Channel", country: "", category: "", language: "", quality: "" };
       
-      if (hls) {
-        hls.destroy();
-        hls = null;
-      }
-      
-      if (Hls.isSupported()) {
-        hls = new Hls({ enableWorker: true });
-        hls.loadSource(streamUrl);
-        hls.attachMedia(video);
-        hls.once(Hls.Events.MANIFEST_PARSED, () => {
-          video.play().then(() => {
-            showSpinner(false);
-          }).catch(err => {
-            console.error("Errore nel play:", err);
-            showSpinner(false);
-          });
-        });
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          console.error("Errore HLS:", data);
-          showSpinner(false);
-        });
-      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = streamUrl;
-        video.play().then(() => {
-          showSpinner(false);
-        }).catch(err => {
-          console.error("Errore nel play (nativo):", err);
-          showSpinner(false);
-        });
-      } else {
-        alert("Il tuo browser non supporta lo streaming HLS.");
-        showSpinner(false);
-      }
+      rawChannelData.push({
+        ...meta,
+        streamUrl: streamUrl
+      });
+      currentMeta = null;
     }
-    
-    function parseChannelList(content) {
-      const lines = content.split("\n");
-      channelsContainer.innerHTML = "";
-      channels = [];
-      currentSelectedIndex = -1;
-      let currentTitle = "";
-      lines.forEach(line => {
-        line = line.trim();
-        if (!line) return;
-        if (line.startsWith("#EXTINF")) {
-          // Estrae il titolo dal testo dopo la virgola (fallback "Canale IPTV")
-          const match = line.match(/,(.*)$/);
-          currentTitle = match ? match[1].trim() : "Canale IPTV";
-        } else if (line.startsWith("http")) {
-          const streamUrl = line;
-          const channelDiv = document.createElement("div");
-          channelDiv.className = "channel";
-          channelDiv.textContent = currentTitle;
-          channelDiv.addEventListener("click", function() {
-            playChannel(streamUrl);
-            currentSelectedIndex = channels.indexOf(channelDiv);
-            updateSelection();
-          });
-          channelsContainer.appendChild(channelDiv);
-          channels.push(channelDiv);
-        }
+  });
+
+  if (searchInput) searchInput.value = "";
+  renderChannels(rawChannelData);
+}
+
+function renderChannels(dataList) {
+  channelsContainer.innerHTML = "";
+  visibleChannels = [];
+  currentSelectedIndex = -1;
+
+  dataList.forEach(item => {
+    const cardBtn = document.createElement("button");
+    cardBtn.className = "channel-card";
+    cardBtn.type = "button";
+
+    // Title Row Container (Title + Quality badge side-by-side)
+    const titleRow = document.createElement("div");
+    titleRow.className = "channel-card-title-row";
+
+    const titleEl = document.createElement("span");
+    titleEl.className = "channel-card-title";
+    titleEl.textContent = item.title;
+    titleRow.appendChild(titleEl);
+
+    // Render Quality badge inline next to the title if available
+    if (item.quality) {
+      const qualitySpan = document.createElement("span");
+      qualitySpan.className = "meta-badge quality-badge";
+      qualitySpan.textContent = `${item.quality}`;
+      titleRow.appendChild(qualitySpan);
+    }
+
+    cardBtn.appendChild(titleRow);
+
+    // Metadata Row (Country, Categories, Language)
+    const metaEl = document.createElement("div");
+    metaEl.className = "channel-card-meta";
+
+    if (item.country) {
+      const countrySpan = document.createElement("span");
+      countrySpan.className = "meta-badge";
+      countrySpan.textContent = item.country.toUpperCase();
+      metaEl.appendChild(countrySpan);
+    }
+
+    // Split multi-genre/category strings (by ;, /, or ,) into separate badge cards
+    if (item.category) {
+      const categories = item.category.split(/[;,/]+/).map(c => c.trim()).filter(Boolean);
+      categories.forEach(cat => {
+        const catBadge = document.createElement("span");
+        catBadge.className = "meta-badge category-badge";
+        catBadge.textContent = cat;
+        metaEl.appendChild(catBadge);
       });
     }
-    
-    // Event listener per il file input: il file scelto dall'utente viene letto e parsato
-    fileInput.addEventListener("change", function(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const content = e.target.result;
-        parseChannelList(content);
-      };
-      reader.readAsText(file);
+
+    if (item.language) {
+      const langBadge = document.createElement("span");
+      langBadge.className = "meta-badge";
+      langBadge.textContent = item.language;
+      metaEl.appendChild(langBadge);
+    }
+
+    if (metaEl.children.length > 0) {
+      cardBtn.appendChild(metaEl);
+    }
+
+    cardBtn.addEventListener("click", () => {
+      playChannel(item.streamUrl);
+      currentSelectedIndex = visibleChannels.indexOf(cardBtn);
+      updateSelection();
     });
-    
-    function updateSelection() {
-      channels.forEach((channel, index) => {
-        if (index === currentSelectedIndex) {
-          channel.classList.add("selected");
-          channel.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        } else {
-          channel.classList.remove("selected");
-        }
-      });
-    }
-    
-    /********** EVENTI DA TASTIERA **********/
-    document.addEventListener("keydown", function(e) {
-      // Se l'utente preme "l", simula un click sul file input per ricaricare la lista
-      if (e.key.toLowerCase() === "l") {
-        e.preventDefault();
-        fileInput.click();
-        return;
-      }
-      
-      // Navigazione nella lista dei canali
-      if (channels.length > 0) {
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          currentSelectedIndex = (currentSelectedIndex + 1) % channels.length;
-          updateSelection();
-          return;
-        }
-        if (e.key === "ArrowUp") {
-          e.preventDefault();
-          currentSelectedIndex = (currentSelectedIndex - 1 + channels.length) % channels.length;
-          updateSelection();
-          return;
-        }
-        if (e.key === "Enter") {
-          e.preventDefault();
-          if (currentSelectedIndex >= 0 && currentSelectedIndex < channels.length) {
-            channels[currentSelectedIndex].click();
-          }
-          return;
-        }
-      }
-      
-      // Controlli del player via tastiera
-      if (e.key === " ") { // Space per pausa/ripresa
-         e.preventDefault();
-         video.paused ? video.play() : video.pause();
-      } else if (e.key === "+" || e.key === "=") { // Volume su
-         e.preventDefault();
-         video.volume = Math.min(video.volume + 0.1, 1);
-      } else if (e.key === "-") { // Volume giù
-         e.preventDefault();
-         video.volume = Math.max(video.volume - 0.1, 0);
-      } else if (e.key.toLowerCase() === "m") { // Toggle mute
-         e.preventDefault();
-         video.muted = !video.muted;
-      } else if (e.key.toLowerCase() === "f") { // Fullscreen toggle
-         e.preventDefault();
-         if (!document.fullscreenElement) {
-            video.requestFullscreen ? video.requestFullscreen() : (video.webkitRequestFullscreen && video.webkitRequestFullscreen());
-         } else {
-            document.exitFullscreen ? document.exitFullscreen() : (document.webkitExitFullscreen && document.webkitExitFullscreen());
-         }
-      } else if (e.key.toLowerCase() === "p") { // Picture-in-Picture toggle
-         e.preventDefault();
-         if (document.pictureInPictureElement) {
-            document.exitPictureInPicture().catch(err => console.error(err));
-         } else {
-            video.requestPictureInPicture ? video.requestPictureInPicture().catch(err => console.error(err)) : null;
-         }
-      }
+
+    channelsContainer.appendChild(cardBtn);
+    visibleChannels.push(cardBtn);
+  });
+
+  if (channelCount) {
+    channelCount.textContent = visibleChannels.length;
+  }
+}
+
+// Search Filter
+if (searchInput) {
+  searchInput.addEventListener("input", (e) => {
+    const term = e.target.value.toLowerCase();
+    const filtered = rawChannelData.filter(item => 
+      item.title.toLowerCase().includes(term) ||
+      item.category.toLowerCase().includes(term) ||
+      item.country.toLowerCase().includes(term) ||
+      item.language.toLowerCase().includes(term) ||
+      item.quality.toLowerCase().includes(term)
+    );
+    renderChannels(filtered);
+  });
+}
+
+// File and URL loaders
+if (uploadFileBtn && fileInput) {
+  uploadFileBtn.addEventListener("click", () => fileInput.click());
+
+  fileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => parseChannelList(event.target.result);
+    reader.readAsText(file);
+  });
+}
+
+function loadPlaylistFromUrl(url) {
+  if (!url) return alert("Enter a valid playlist URL.");
+  showSpinner(true);
+  fetch(url)
+    .then(res => res.text())
+    .then(content => {
+      parseChannelList(content);
+      showSpinner(false);
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Failed to load playlist. Check URL or CORS settings.");
+      showSpinner(false);
     });
-    
-    /********** SUPPORTO JOYPAD (CONTROLLER/TELECOMANDO) CON DEBOUNCE **********/
-    const debounceDelay = 250;
-    // Impostiamo un oggetto per il debounce degli eventi simulati
-    const debounceTimes = {
-      ArrowUp: 0,
-      ArrowDown: 0,
-      Enter: 0,
-      " ": 0,
-      m: 0,
-      f: 0,
-      p: 0,
-      l: 0, // Per il file input
-      // Volume su e giù li gestiamo con i pulsanti RT e LT
-      volUp: 0,
-      volDown: 0
-    };
-    
-    function simulateKeyEvent(key) {
-      const event = new KeyboardEvent("keydown", { key: key, bubbles: true });
-      document.dispatchEvent(event);
+}
+
+if (loadUrlBtn && m3uUrlInput) {
+  loadUrlBtn.addEventListener("click", () => loadPlaylistFromUrl(m3uUrlInput.value.trim()));
+  m3uUrlInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") loadPlaylistFromUrl(m3uUrlInput.value.trim());
+  });
+}
+
+function updateSelection() {
+  visibleChannels.forEach((el, index) => {
+    if (index === currentSelectedIndex) {
+      el.classList.add("selected");
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } else {
+      el.classList.remove("selected");
     }
-    
-    function pollGamepad() {
-      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-      if (gamepads[0]) {
-        const gp = gamepads[0];
-        let now = Date.now();
-        // D-Pad Up → ArrowUp
-        if (gp.buttons[12] && gp.buttons[12].pressed) {
-          if (now - debounceTimes["ArrowUp"] > debounceDelay) {
-            simulateKeyEvent("ArrowUp");
-            debounceTimes["ArrowUp"] = now;
-          }
-        }
-        // D-Pad Down → ArrowDown
-        if (gp.buttons[13] && gp.buttons[13].pressed) {
-          if (now - debounceTimes["ArrowDown"] > debounceDelay) {
-            simulateKeyEvent("ArrowDown");
-            debounceTimes["ArrowDown"] = now;
-          }
-        }
-        // A Button (indice 0) → Enter
-        if (gp.buttons[0] && gp.buttons[0].pressed) {
-          if (now - debounceTimes["Enter"] > debounceDelay) {
-            simulateKeyEvent("Enter");
-            debounceTimes["Enter"] = now;
-          }
-        }
-        // B Button (indice 1) → Space (pausa/ripresa)
-        if (gp.buttons[1] && gp.buttons[1].pressed) {
-          if (now - debounceTimes[" "] > debounceDelay) {
-            simulateKeyEvent(" ");
-            debounceTimes[" "] = now;
-          }
-        }
-        // LT (indice 6) → "-" (Volume giù)
-        if (gp.buttons[6] && gp.buttons[6].pressed) {
-          if (now - debounceTimes["volDown"] > debounceDelay) {
-            simulateKeyEvent("-");
-            debounceTimes["volDown"] = now;
-          }
-        }
-        // RT (indice 7) → "+" (Volume su)
-        if (gp.buttons[7] && gp.buttons[7].pressed) {
-          if (now - debounceTimes["volUp"] > debounceDelay) {
-            simulateKeyEvent("+");
-            debounceTimes["volUp"] = now;
-          }
-        }
-        // X Button (indice 2) → "m" (Toggle mute)
-        if (gp.buttons[2] && gp.buttons[2].pressed) {
-          if (now - debounceTimes["m"] > debounceDelay) {
-            simulateKeyEvent("m");
-            debounceTimes["m"] = now;
-          }
-        }
-        // Y Button (indice 3) → "f" (Fullscreen toggle)
-        if (gp.buttons[3] && gp.buttons[3].pressed) {
-          if (now - debounceTimes["f"] > debounceDelay) {
-            simulateKeyEvent("f");
-            debounceTimes["f"] = now;
-          }
-        }
-        // LB (indice 4) → "l" (Per riaprire il file input)
-        if (gp.buttons[4] && gp.buttons[4].pressed) {
-          if (now - debounceTimes["l"] > debounceDelay) {
-            simulateKeyEvent("l");
-            debounceTimes["l"] = now;
-          }
-        }
-        // Back Button (indice 8) → "p" (Picture-in-Picture)
-        if (gp.buttons[8] && gp.buttons[8].pressed) {
-          if (now - debounceTimes["p"] > debounceDelay) {
-            simulateKeyEvent("p");
-            debounceTimes["p"] = now;
-          }
-        }
-      }
-      requestAnimationFrame(pollGamepad);
+  });
+}
+
+// Keyboard Navigation
+document.addEventListener("keydown", (e) => {
+  const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
+  if (activeTag === "input" || activeTag === "textarea") return;
+
+  if (visibleChannels.length > 0) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      currentSelectedIndex = (currentSelectedIndex + 1) % visibleChannels.length;
+      updateSelection();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      currentSelectedIndex = (currentSelectedIndex - 1 + visibleChannels.length) % visibleChannels.length;
+      updateSelection();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (currentSelectedIndex >= 0) visibleChannels[currentSelectedIndex].click();
     }
-    
-    window.addEventListener("gamepadconnected", function(e) {
-      console.log("Gamepad collegato:", e.gamepad);
-    });
-    if (navigator.getGamepads) {
-      requestAnimationFrame(pollGamepad);
-    }
-    
-    video.addEventListener("playing", () => showSpinner(false));
-    video.addEventListener("waiting", () => showSpinner(true));
+  }
+});
+
+if (video) {
+  video.addEventListener("playing", () => showSpinner(false));
+  video.addEventListener("waiting", () => showSpinner(true));
+}
