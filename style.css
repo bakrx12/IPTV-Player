@@ -1,104 +1,323 @@
- /* Reset e stili base */
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-       font-family: Arial, sans-serif;
-       background-color: #000;
-       color: #fff;
-    }
-    header {
-       background-color: #111;
-       padding: 1rem;
-       text-align: center;
-       border-bottom: 1px solid #333;
-       display: flex;
-       align-items: center;
-       justify-content: center;
-    }
-    header img {
-       height: 50px;
-       margin-right: 10px;
-    }
-    /* Area file input (per caricare la lista .m3u) */
-    .file-input {
-       background-color: #111;
-       padding: 10px;
-       text-align: center;
-       border-bottom: 1px solid #333;
-    }
-    .file-input p { margin-bottom: 5px; }
-    .file-input input {
-       margin: 0.5rem;
-       padding: 0.5rem;
-       font-size: 1rem;
-    }
-    /* Layout principale in flex: player e lista canali */
-    .main-container {
-       display: flex;
-       height: calc(100vh - 240px); /* Spazio per header, file input e footer */
-    }
-    .player-container {
-       flex: 3;
-       position: relative;
-       background-color: #000;
-       display: flex;
-       align-items: center;
-       justify-content: center;
-    }
-    .player-container video {
-       width: 100%;
-       height: 100%;
-       background-color: #000;
-    }
-    /* Spinner overlay per il caricamento */
-    .spinner-overlay {
-       position: absolute;
-       top: 0;
-       left: 0;
-       width: 100%;
-       height: 100%;
-       background: rgba(0,0,0,0.6);
-       display: flex;
-       align-items: center;
-       justify-content: center;
-       z-index: 10;
-       display: none;
-    }
-    .spinner {
-       border: 8px solid #f3f3f3;
-       border-top: 8px solid #3498db;
-       border-radius: 50%;
-       width: 60px;
-       height: 60px;
-       animation: spin 1s linear infinite;
-    }
-    @keyframes spin { 100% { transform: rotate(360deg); } }
-    /* Aside della lista dei canali */
-    .channel-list {
-       flex: 1;
-       background-color: #222;
-       padding: 10px;
-       overflow-y: auto;
-    }
-    #channelsContainer { }
-    .channel {
-       padding: 10px;
-       margin-bottom: 5px;
-       border-bottom: 1px solid #444;
-       cursor: pointer;
-       transition: background 0.15s ease;
-    }
-    .channel:hover { background-color: #444; }
-    .channel.selected { background-color: #666; }
-    /* Footer */
-    footer {
-       background-color: #111;
-       padding: 10px;
-       text-align: center;
-       border-top: 1px solid #333;
-       font-size: 0.9rem;
-    }
-    /* Responsive: layout a colonna se la larghezza è bassa */
-    @media (max-width: 768px) {
-       .main-container { flex-direction: column; }
-       .player-container, .channel-list { flex: none; width: 100%; height: 50vh; }
-    }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+  background-color: #0a0a0c;
+  color: #e0e0e6;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Topbar */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #121216;
+  padding: 10px 20px;
+  border-bottom: 1px solid #22222b;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+/* Buttons */
+.btn {
+  background: #202028;
+  color: #e0e0e6;
+  border: 1px solid #333342;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn:hover {
+  background: #2d2d38;
+}
+
+.btn-primary {
+  background: #2e2e3a;
+  border-color: #444456;
+}
+
+.btn-secondary {
+  background: #1f1f28;
+  border-color: #353545;
+}
+
+/* Main Layout */
+.main-layout {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  flex: 1;
+  overflow: hidden;
+  background: #0a0a0c;
+}
+
+.player-section {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  background: #000;
+  overflow: hidden;
+}
+
+.video-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.video-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  overflow: hidden;
+  border-radius: 8px 8px 0 0;
+}
+
+#videoPlayer {
+  width: 100%;
+  height: 100%;
+  outline: none;
+  object-fit: contain;
+}
+
+.remote-notice {
+  background: #111116;
+  border: 1px solid #22222d;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  color: #7a7a8c;
+  text-align: center;
+}
+
+/* Sidebar */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: #121216;
+  border-left: 1px solid #22222b;
+  overflow: hidden;
+}
+
+.card {
+  background: #181820;
+  border: 1px solid #262632;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.playlist-loader h3, .panel-header h3 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #888899;
+}
+
+.url-input-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.url-input-group input, .channel-search-wrapper input {
+  width: 100%;
+  background: #1a1a22;
+  border: 1px solid #2e2e3a;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  outline: none;
+  font-size: 0.85rem;
+}
+
+.url-input-group input:focus, .channel-search-wrapper input:focus {
+  border-color: #555566;
+}
+
+.channel-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.channel-search-wrapper {
+  margin-bottom: 10px;
+}
+
+.count-badge {
+  background: #262632;
+  color: #aaa;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.channels-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Single Channel Card Container */
+.channels-container button.channel-card {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 10px 14px !important;
+  background-color: #1f1f2a !important;
+  border: 1px solid #2d2d3e !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  text-align: left !important;
+  margin-bottom: 0 !important;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+/* Reset inner div elements so they don't form nested cards */
+.channels-container .channel-card div {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+
+.channels-container button.channel-card:hover {
+  background-color: #272736 !important;
+  border-color: #3f3f56 !important;
+}
+
+.channels-container button.channel-card.selected {
+  background-color: #2e2e42 !important;
+  border-color: #5d5d80 !important;
+  box-shadow: 0 0 0 1px #5d5d80 !important;
+}
+
+/* Title text */
+.channel-card-title {
+  font-size: 0.88rem !important;
+  font-weight: 500 !important;
+  color: #ffffff !important;
+  line-height: 1.3 !important;
+  word-break: break-word !important;
+  text-align: left !important;
+  flex: 1 !important; /* Takes up space so quality badge pushes to the right */
+}
+
+.channel-card-title-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important; /* Pushes items to opposite sides */
+  gap: 8px !important;
+  width: 100% !important;
+}
+
+/* Metadata row (Quality & Category Badges aligned side-by-side) */
+.channel-card-meta {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+  margin-top: 6px !important;
+  width: 100% !important;
+}
+
+/* Badge base styles */
+.meta-badge {
+  background: #121218 !important;
+  border: 1px solid #2e2e3e !important;
+  padding: 2px 7px !important;
+  border-radius: 4px !important;
+  color: #a0a0b8 !important;
+  font-size: 0.72rem !important;
+  line-height: 1.2 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  white-space: nowrap !important;
+}
+
+/* Quality Tag Highlight */
+.meta-badge.quality-badge {
+  background: #1a1a28 !important;
+  border-color: #3b3b54 !important;
+  color: #8da4d0 !important;
+  margin-left: auto !important; /* Ensures right-alignment */
+  flex-shrink: 0 !important; /* Keeps the badge from shrinking */
+}
+
+.category-badge {
+  background: #15151e !important;
+  color: #a0a0b8 !important;
+}
+
+/* Spinner */
+.spinner-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid #333;
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
