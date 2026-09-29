@@ -9,7 +9,7 @@
 </head>
 <body>
   <div class="app-container">
-
+    <!-- Topbar -->
     <header class="topbar">
       <div class="brand">
         <span class="brand-icon">📺</span>
@@ -21,9 +21,9 @@
       </div>
     </header>
 
-
+    <!-- Main Dashboard -->
     <main class="main-layout">
-
+      <!-- Player Area -->
       <section class="player-section">
         <div class="video-container">
           <div class="video-wrapper">
@@ -56,12 +56,26 @@
         <div class="card channel-panel">
           <div class="panel-header">
             <h3>CHANNELS</h3>
-            <span id="channelCount" class="count-badge">0</span>
+            <div class="badge-group-top">
+              <span id="channelCount" class="count-badge total-badge">0</span>
+              <button id="globalEpgBtn" class="btn btn-secondary btn-sm">EPG</button>
+            </div>
           </div>
           
-          <!-- Search box moved inside channels section -->
+          <!-- Search box inside channels section -->
           <div class="channel-search-wrapper">
             <input type="text" id="searchInput" placeholder="Search channels, categories, countries...">
+          </div>
+
+          <!-- Counter info showing X out of Total -->
+          <div class="channel-status-bar" id="channelStatusBar">
+            Showing 0 out of 0 channels
+          </div>
+
+          <!-- Hidden & Geo-Blocked Filter Badges Below Status Bar -->
+          <div class="badge-group">
+            <button id="hiddenBadge" class="count-badge hidden-badge" style="display: none;">Hidden (0)</button>
+            <button id="geoBlockedBtn" class="count-badge geo-badge" style="display: none;">Geo-Blocked (0)</button>
           </div>
 
           <div class="channels-container" id="channelsContainer">
@@ -70,6 +84,63 @@
         </div>
       </aside>
     </main>
+  </div>
+
+  <!-- Custom Context Menu for Channels -->
+  <div class="context-menu" id="channelContextMenu">
+    <ul>
+      <li id="ctxBlockChannel">🚫 Block Channel</li>
+      <li id="ctxGetEpg">📅 Electronic Program Guide (EPG)</li>
+    </ul>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>⚙️ Player Settings</h3>
+        <button class="close-btn" id="closeSettingsBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-item">
+          <label for="showGeoBlockedToggle">Show Geo-Blocked Channels</label>
+          <input type="checkbox" id="showGeoBlockedToggle">
+        </div>
+
+        <div class="setting-item">
+          <label for="preferredQualitySelect">Preferred Quality</label>
+          <select id="preferredQualitySelect">
+            <option value="auto">Auto (Best Available)</option>
+            <option value="1080p">1080p (FHD)</option>
+            <option value="720p">720p (HD)</option>
+            <option value="480p">480p (SD)</option>
+            <option value="360p">360p (Low)</option>
+          </select>
+        </div>
+
+        <div class="setting-item vertical">
+          <label for="blockedKeywordsInput">Block Channels by Keywords (comma separated)</label>
+          <input type="text" id="blockedKeywordsInput" placeholder="e.g. xxx, adult, test, trailer">
+          <span class="setting-desc">Channels with names matching any keyword will be hidden automatically.</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="saveSettingsBtn">Save & Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EPG Modal -->
+  <div class="modal-overlay" id="epgModal">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="epgModalTitle">📅 Electronic Program Guide (EPG)</h3>
+        <button class="close-btn" id="closeEpgBtn">&times;</button>
+      </div>
+      <div class="modal-body" id="epgModalBody">
+        <!-- EPG content injected dynamically -->
+      </div>
+    </div>
   </div>
 
   <script src="core.js"></script>
