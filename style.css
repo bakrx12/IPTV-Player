@@ -54,6 +54,11 @@ body {
   background: #2d2d38;
 }
 
+.btn-sm {
+  padding: 3px 8px;
+  font-size: 0.75rem;
+}
+
 .btn-primary {
   background: #2e2e3a;
   border-color: #444456;
@@ -148,7 +153,7 @@ body {
   margin-top: 10px;
 }
 
-.url-input-group input, .channel-search-wrapper input {
+.url-input-group input, .channel-search-wrapper input, .modal-body input[type="text"], .modal-body select {
   width: 100%;
   background: #1a1a22;
   border: 1px solid #2e2e3a;
@@ -159,7 +164,7 @@ body {
   font-size: 0.85rem;
 }
 
-.url-input-group input:focus, .channel-search-wrapper input:focus {
+.url-input-group input:focus, .channel-search-wrapper input:focus, .modal-body input[type="text"]:focus, .modal-body select:focus {
   border-color: #555566;
 }
 
@@ -178,16 +183,103 @@ body {
   margin-bottom: 10px;
 }
 
+.badge-group-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .channel-search-wrapper {
+  margin-bottom: 6px;
+}
+
+.channel-status-bar {
+  font-size: 0.75rem;
+  color: #88889a;
+  margin-bottom: 8px;
+  padding: 0 2px;
+}
+
+/* Badge Group & Uniform Badge Sizing */
+.badge-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-bottom: 10px;
 }
 
 .count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.total-badge {
   background: #262632;
   color: #aaa;
-  font-size: 0.75rem;
-  padding: 2px 8px;
+  border-color: #333342;
   border-radius: 10px;
+}
+
+.geo-badge {
+  background: #3b2818;
+  color: #e6a15c;
+  border-color: #543922;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.geo-badge:hover {
+  background: #523720;
+}
+
+.geo-badge:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #25201b;
+  color: #a38263;
+  border-color: #3b2f25;
+}
+
+.geo-badge.filter-all {
+  background: #3b2818;
+  color: #e6a15c;
+  border-color: #543922;
+}
+
+.geo-badge.filter-only-geo {
+  background: #b35900;
+  color: #ffffff;
+  border-color: #d96d00;
+}
+
+.geo-badge.filter-non-geo {
+  background: #1f382a;
+  color: #63d492;
+  border-color: #2b523e;
+}
+
+.hidden-badge {
+  background: #3a1e28;
+  color: #e57399;
+  border-color: #542738;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.hidden-badge.active-hidden {
+  background: #a82e56;
+  color: #ffffff;
+  border-color: #d6386c;
 }
 
 .channels-container {
@@ -218,7 +310,6 @@ body {
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-/* Reset inner div elements so they don't form nested cards */
 .channels-container .channel-card div {
   background: transparent !important;
   border: none !important;
@@ -246,19 +337,33 @@ body {
   line-height: 1.3 !important;
   word-break: break-word !important;
   text-align: left !important;
-  flex: 1 !important; /* Takes up space so quality badge pushes to the right */
+  flex: 1 !important;
+}
+.channel-card-details {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+
+.channel-card-content {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  gap: 10px !important;
 }
 
 .channel-card-title-row {
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
-  justify-content: space-between !important; /* Pushes items to opposite sides */
+  justify-content: space-between !important;
   gap: 8px !important;
   width: 100% !important;
 }
 
-/* Metadata row (Quality & Category Badges aligned side-by-side) */
 .channel-card-meta {
   display: flex !important;
   flex-direction: row !important;
@@ -266,11 +371,10 @@ body {
   justify-content: flex-start !important;
   flex-wrap: wrap !important;
   gap: 6px !important;
-  margin-top: 6px !important;
+  margin-top: 4px !important;
   width: 100% !important;
 }
 
-/* Badge base styles */
 .meta-badge {
   background: #121218 !important;
   border: 1px solid #2e2e3e !important;
@@ -284,18 +388,52 @@ body {
   white-space: nowrap !important;
 }
 
-/* Quality Tag Highlight */
 .meta-badge.quality-badge {
   background: #1a1a28 !important;
   border-color: #3b3b54 !important;
   color: #8da4d0 !important;
-  margin-left: auto !important; /* Ensures right-alignment */
-  flex-shrink: 0 !important; /* Keeps the badge from shrinking */
+  margin-left: auto !important;
+  flex-shrink: 0 !important;
+}
+
+.meta-badge.geo-blocked-badge {
+  background: #3b1e1e !important;
+  border-color: #5c2b2b !important;
+  color: #e57373 !important;
 }
 
 .category-badge {
   background: #15151e !important;
   color: #a0a0b8 !important;
+}
+
+/* Context Menu */
+.context-menu {
+  display: none;
+  position: absolute;
+  z-index: 2000;
+  background: #1c1c26;
+  border: 1px solid #323246;
+  border-radius: 6px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+
+.context-menu ul {
+  list-style: none;
+}
+
+.context-menu li {
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  color: #e0e0e6;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.context-menu li:hover {
+  background: #2a2a3a;
+  color: #fff;
 }
 
 /* Spinner */
@@ -320,4 +458,161 @@ body {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Settings & EPG Modals */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-overlay.open {
+  display: flex;
+}
+
+.modal-content {
+  background: #16161e;
+  border: 1px solid #2a2a38;
+  border-radius: 10px;
+  width: 440px;
+  max-width: 90%;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-large {
+  width: 680px;
+  max-height: 80vh;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #242432;
+}
+
+.modal-header h3 {
+  font-size: 1rem;
+  color: #fff;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.close-btn:hover {
+  color: #fff;
+}
+
+.modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.setting-item.vertical {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.setting-item label {
+  font-size: 0.88rem;
+  color: #ddd;
+}
+
+.setting-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #4f52b2;
+}
+
+.setting-desc {
+  font-size: 0.75rem;
+  color: #777788;
+  margin-top: 4px;
+}
+
+.modal-footer {
+  padding: 14px 20px;
+  border-top: 1px solid #242432;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* EPG Table Style */
+.epg-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 0.85rem;
+}
+
+.epg-table th, .epg-table td {
+  padding: 10px 12px;
+  border: 1px solid #2a2a3a;
+  text-align: left;
+}
+
+.epg-table th {
+  background: #1d1d28;
+  color: #8da4d0;
+}
+
+.epg-channel-header {
+  font-weight: 600;
+  color: #63d492;
+  background: #1c2620;
+}
+
+.channel-logo-wrapper {
+  width: 48px !important;
+  height: 48px !important;
+  min-width: 48px !important;
+  min-height: 48px !important;
+  background: #111118 !important;
+  border: 1px solid #282836 !important;
+  border-radius: 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.1rem !important;
+  overflow: hidden !important;
+  flex-shrink: 0 !important;
+  margin-right: 0 !important;
+}
+
+.channel-logo {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  padding: 3px !important;
+}
+
+.channel-logo-icon {
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-right: 6px;
 }
