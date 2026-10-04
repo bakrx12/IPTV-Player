@@ -32,9 +32,15 @@
             </div>
             <video id="videoPlayer" controls></video>
           </div>
-          <!-- Controller Notice -->
+          <!-- Controller Notice & Audio Selector -->
           <div class="remote-notice">
             <span>🎮 Navigation supported via Keyboard, Gamepad, Controller, or TV Remote.</span>
+            <div class="audio-track-wrapper">
+              <label for="audioTrackSelect">🔊 Audio:</label>
+              <select id="audioTrackSelect" disabled>
+                <option value="-1">Default / Auto</option>
+              </select>
+            </div>
           </div>
         </div>
       </section>
@@ -57,40 +63,36 @@
           <div class="panel-header">
             <h3>CHANNELS</h3>
             <div class="badge-group-top">
-              <span id="channelCount" class="count-badge total-badge">0</span>
-              <button id="globalEpgBtn" class="btn btn-secondary btn-sm">EPG</button>
+              <span id="channelCount" class="count-badge total-badge">Total: 0</span>
             </div>
           </div>
           
-          <!-- Search box inside channels section -->
           <div class="channel-search-wrapper">
             <input type="text" id="searchInput" placeholder="Search channels, categories, countries...">
           </div>
 
-          <!-- Counter info showing X out of Total -->
           <div class="channel-status-bar" id="channelStatusBar">
             Showing 0 out of 0 channels
           </div>
 
-          <!-- Hidden & Geo-Blocked Filter Badges Below Status Bar -->
           <div class="badge-group">
             <button id="hiddenBadge" class="count-badge hidden-badge" style="display: none;">Hidden (0)</button>
             <button id="geoBlockedBtn" class="count-badge geo-badge" style="display: none;">Geo-Blocked (0)</button>
           </div>
 
           <div class="channels-container" id="channelsContainer">
-            <!-- Channel card items generated here dynamically -->
+            <!-- Channel card items generated dynamically -->
           </div>
         </div>
       </aside>
     </main>
   </div>
 
-  <!-- Custom Context Menu for Channels -->
+  <!-- Custom Context Menu -->
   <div class="context-menu" id="channelContextMenu">
     <ul>
       <li id="ctxBlockChannel">🚫 Block Channel</li>
-      <li id="ctxGetEpg">📅 Electronic Program Guide (EPG)</li>
+      <li id="ctxGetEpg">📅 Get Electronic Program Guide (EPG)</li>
     </ul>
   </div>
 
@@ -98,13 +100,25 @@
   <div class="modal-overlay" id="settingsModal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>⚙️ Player Settings</h3>
+        <h3>⚙️️ Player Settings</h3>
         <button class="close-btn" id="closeSettingsBtn">&times;</button>
       </div>
       <div class="modal-body">
         <div class="setting-item">
           <label for="showGeoBlockedToggle">Show Geo-Blocked Channels</label>
           <input type="checkbox" id="showGeoBlockedToggle">
+        </div>
+
+        <div class="setting-item">
+          <label for="preferredLanguageSelect">Preferred Audio Language</label>
+          <select id="preferredLanguageSelect">
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="pt">Portuguese</option>
+            <option value="auto">Auto / Default</option>
+          </select>
         </div>
 
         <div class="setting-item">
@@ -131,17 +145,23 @@
   </div>
 
   <!-- EPG Modal -->
-  <div class="modal-overlay" id="epgModal">
-    <div class="modal-content modal-large">
-      <div class="modal-header">
-        <h3 id="epgModalTitle">📅 Electronic Program Guide (EPG)</h3>
-        <button class="close-btn" id="closeEpgBtn">&times;</button>
+<div class="modal-overlay" id="epgModal">
+  <div class="modal-content modal-large">
+    <div class="modal-header">
+      <h3 id="epgModalTitle">📅 Electronic Program Guide (EPG)</h3>
+      <button class="close-btn" id="closeEpgBtn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <!-- EPG Source Customizer Bar -->
+      <div class="epg-source-bar" style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center; background: #1a1a1a; padding: 8px; border-radius: 6px;">
+        <label for="epgUrlInput" style="font-size: 0.85rem; color: #aaa; white-space: nowrap;">EPG URL:</label>
+        <input type="text" id="epgUrlInput" placeholder="https://example.com/guide.xml" style="flex: 1; padding: 6px 10px; background: #222; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 0.85rem;" value="https://iptv-org.github.io/epg/guides/us.xml">
+        <button class="btn btn-primary btn-sm" id="loadCustomEpgBtn" style="padding: 6px 12px; font-size: 0.85rem;">Load Source</button>
       </div>
-      <div class="modal-body" id="epgModalBody">
-        <!-- EPG content injected dynamically -->
-      </div>
+      <div id="epgModalBody"></div>
     </div>
   </div>
+</div>
 
   <script src="core.js"></script>
 </body>
