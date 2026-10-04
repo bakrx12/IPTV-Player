@@ -7,12 +7,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.getElementById('searchInput');
   const channelsContainer = document.getElementById('channelsContainer');
   const channelCountBadge = document.getElementById('channelCount');
-  const globalEpgBtn = document.getElementById('globalEpgBtn');
   const geoBlockedBtn = document.getElementById('geoBlockedBtn');
   const hiddenBadge = document.getElementById('hiddenBadge');
   const channelStatusBar = document.getElementById('channelStatusBar');
   const videoPlayer = document.getElementById('videoPlayer');
   const spinner = document.getElementById('spinner');
+  const audioTrackSelect = document.getElementById('audioTrackSelect');
 
   // Context Menu Elements
   const channelContextMenu = document.getElementById('channelContextMenu');
@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const closeSettingsBtn = document.getElementById('closeSettingsBtn');
   const saveSettingsBtn = document.getElementById('saveSettingsBtn');
   const showGeoBlockedToggle = document.getElementById('showGeoBlockedToggle');
+  const preferredLanguageSelect = document.getElementById('preferredLanguageSelect');
   const preferredQualitySelect = document.getElementById('preferredQualitySelect');
   const blockedKeywordsInput = document.getElementById('blockedKeywordsInput');
 
@@ -33,12 +34,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const closeEpgBtn = document.getElementById('closeEpgBtn');
   const epgModalTitle = document.getElementById('epgModalTitle');
   const epgModalBody = document.getElementById('epgModalBody');
+  const epgUrlInput = document.getElementById('epgUrlInput');
+  const loadCustomEpgBtn = document.getElementById('loadCustomEpgBtn');
 
   // Application State
   let channels = [];
   let hlsInstance = null;
   let activeChannelIndex = -1;
   let contextTargetChannel = null;
+
+  // Web Audio Context for Dual-Mono/Channel Splitting
+  let audioCtx = null;
+  let sourceNode = null;
+  let splitterNode = null;
+  let mergerNode = null;
 
   // Pagination & Infinite Scroll State
   const BATCH_SIZE = 15;
@@ -48,9 +57,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let geoFilterState = 'all';
   let showOnlyHidden = false;
 
-  // Settings State (persisted in localStorage)
+  // Settings State
   let settings = {
     showGeoBlocked: false,
+    preferredLanguage: 'en',
     preferredQuality: 'auto',
     blockedKeywords: []
   };
@@ -67,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const logoMatch = extinfLine.match(/tvg-logo="([^"]+)"/i);
     if (logoMatch) logo = logoMatch[1].trim();
 
-    const countryMatch = extinfLine.match(/tvg-country="([^"]+)"/i);
+    const countryMatch = extinfLine.match(/tvg-country="([^"]+)"/i) || extinfLine.match(/tvg-country-code="([^"]+)"/i);
     if (countryMatch) country = countryMatch[1].trim();
 
     const groupMatch = extinfLine.match(/group-title="([^"]+)"/i);
@@ -121,12 +131,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     showGeoBlockedToggle.checked = settings.showGeoBlocked;
+    preferredLanguageSelect.value = settings.preferredLanguage || 'en';
     preferredQualitySelect.value = settings.preferredQuality || 'auto';
     blockedKeywordsInput.value = (settings.blockedKeywords || []).join(', ');
   }
 
   function saveSettings() {
     settings.showGeoBlocked = showGeoBlockedToggle.checked;
+    settings.preferredLanguage = preferredLanguageSelect.value;
     settings.preferredQuality = preferredQualitySelect.value;
     settings.blockedKeywords = blockedKeywordsInput.value
       .split(',')
@@ -145,8 +157,179 @@ document.addEventListener('DOMContentLoaded', () => {
     settingsModal.classList.remove('open');
   });
 
-  // EPG Modal Handlers
-  closeEpgBtn.addEventListener('click', () => epgModal.classList.remove('open'));
+  if (closeEpgBtn) {
+    closeEpgBtn.addEventListener('click', () => epgModal.classList.remove('open'));
+  }
+
+  // Setup Web Audio API Channel Splitter Engine
+  function initWebAudio() {
+    if (audioCtx) return;
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioContext();
+      sourceNode = audioCtx.createMediaElementSource(videoPlayer);
+      splitterNode = audioCtx.createChannelSplitter(2);
+      mergerNode = audioCtx.createChannelMerger(2);
+
+      sourceNode.connect(splitterNode);
+      sourceNode.connect(audioCtx.destination);
+    } catch (e) {
+      console.warn("Web Audio API initialization skipped:", e);
+    }
+  }
+
+  function setChannelRouting(mode) {
+    if (!audioCtx) initWebAudio();
+    if (!audioCtx) return;
+
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    sourceNode.disconnect();
+    splitterNode.disconnect();
+    mergerNode.disconnect();
+
+    if (mode === 'left_only') {
+      splitterNode.connect(mergerNode, 0, 0);
+      splitterNode.connect(mergerNode, 0, 1);
+      mergerNode.connect(audioCtx.destination);
+    } else if (mode === 'right_only') {
+      splitterNode.connect(mergerNode, 1, 0);
+      splitterNode.connect(mergerNode, 1, 1);
+      mergerNode.connect(audioCtx.destination);
+    } else {
+      sourceNode.connect(audioCtx.destination);
+    }
+  }
+
+  // Audio Track Selection Change Handler
+  if (audioTrackSelect) {
+    audioTrackSelect.addEventListener('change', (e) => {
+      const val = e.target.value;
+
+      if (val === 'split_left') {
+        setChannelRouting('left_only');
+        return;
+      } else if (val === 'split_right') {
+        setChannelRouting('right_only');
+        return;
+      } else {
+        setChannelRouting('normal');
+      }
+
+      if (val.startsWith("native_") && videoPlayer.audioTracks) {
+        const nativeIdx = parseInt(val.replace("native_", ""), 10);
+        for (let i = 0; i < videoPlayer.audioTracks.length; i++) {
+          videoPlayer.audioTracks[i].enabled = (i === nativeIdx);
+        }
+        return;
+      }
+
+      const trackId = parseInt(val, 10);
+      if (hlsInstance && trackId !== -1) {
+        hlsInstance.audioTrack = trackId;
+        if (videoPlayer && !videoPlayer.paused) {
+          videoPlayer.currentTime += 0.01;
+        }
+      }
+    });
+  }
+
+  // Unified audio track scanner[cite: 1]
+  function scanAndPopulateAudioTracks() {
+    if (!audioTrackSelect) return;
+
+    let foundTracks = [];
+
+    if (hlsInstance && hlsInstance.audioTracks && hlsInstance.audioTracks.length > 0) {
+      hlsInstance.audioTracks.forEach((track, idx) => {
+        const langCode = (track.lang || track.language || '').toUpperCase();
+        const trackName = track.name || track.groupId || '';
+        
+        let label = `Audio Track ${idx + 1}`;
+        if (langCode && trackName) {
+          label = `Audio Track ${idx + 1} - ${langCode} (${trackName})`;
+        } else if (langCode) {
+          label = `Audio Track ${idx + 1} - ${langCode}`;
+        } else if (trackName) {
+          label = `Audio Track ${idx + 1} - ${trackName}`;
+        }
+
+        foundTracks.push({
+          value: idx,
+          label: label,
+          lang: (track.lang || track.name || label).toLowerCase()
+        });
+      });
+    }
+
+    if (foundTracks.length === 0 && videoPlayer.audioTracks && videoPlayer.audioTracks.length > 0) {
+      for (let i = 0; i < videoPlayer.audioTracks.length; i++) {
+        const track = videoPlayer.audioTracks[i];
+        const langCode = (track.language || '').toUpperCase();
+        const trackName = track.label || '';
+
+        let label = `Audio Stream ${i + 1}`;
+        if (langCode && trackName) {
+          label = `Audio Stream ${i + 1} - ${langCode} (${trackName})`;
+        } else if (langCode) {
+          label = `Audio Stream ${i + 1} - ${langCode}`;
+        } else if (trackName) {
+          label = `Audio Stream ${i + 1} - ${trackName}`;
+        }
+
+        foundTracks.push({
+          value: `native_${i}`,
+          label: label,
+          lang: (track.language || track.label || label).toLowerCase(),
+          enabled: track.enabled
+        });
+      }
+    }
+
+    audioTrackSelect.innerHTML = '';
+    
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '-1';
+    defaultOpt.textContent = 'Default / Stereo Auto';
+    audioTrackSelect.appendChild(defaultOpt);
+
+    if (foundTracks.length > 0) {
+      audioTrackSelect.disabled = false;
+      let autoIdx = -1;
+
+      foundTracks.forEach((track, idx) => {
+        const option = document.createElement('option');
+        option.value = track.value;
+        option.textContent = track.label;
+        if (track.enabled) option.selected = true;
+
+        if (settings.preferredLanguage !== 'auto' && track.lang.includes(settings.preferredLanguage)) {
+          autoIdx = idx;
+        }
+        audioTrackSelect.appendChild(option);
+      });
+
+      if (autoIdx !== -1) {
+        const target = foundTracks[autoIdx];
+        audioTrackSelect.value = target.value;
+        if (hlsInstance) hlsInstance.audioTrack = target.value;
+      }
+    } else {
+      audioTrackSelect.disabled = true;
+
+      const optNone = document.createElement('option');
+      optNone.value = '-1';
+      optNone.textContent = 'No alternative audio tracks found';
+      audioTrackSelect.appendChild(optNone);
+    }
+  }
+
+  if (videoPlayer.audioTracks) {
+    videoPlayer.audioTracks.addEventListener('addtrack', scanAndPopulateAudioTracks);
+    videoPlayer.audioTracks.addEventListener('removetrack', scanAndPopulateAudioTracks);
+  }
 
   // M3U Parser
   function parseM3U(content) {
@@ -231,17 +414,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return channels.filter(isChannelHiddenByKeyword).length;
   }
 
-  // Create single channel DOM card
- function createChannelCard(channel, index) {
+  // Create channel card DOM
+  function createChannelCard(channel, index) {
     const btn = document.createElement('button');
     btn.className = 'channel-card';
     if (index === activeChannelIndex) btn.classList.add('selected');
 
-    // Outer flex wrapper separating Logo (left) and Details (right)
     const cardContent = document.createElement('div');
     cardContent.className = 'channel-card-content';
 
-    // Tall Logo Container spanning full height
     const logoWrapper = document.createElement('div');
     logoWrapper.className = 'channel-logo-wrapper';
 
@@ -260,11 +441,9 @@ document.addEventListener('DOMContentLoaded', () => {
       logoWrapper.textContent = '📺';
     }
 
-    // Right details container (Title row + Meta row)
     const cardDetails = document.createElement('div');
     cardDetails.className = 'channel-card-details';
 
-    // Title row
     const titleRow = document.createElement('div');
     titleRow.className = 'channel-card-title-row';
 
@@ -280,29 +459,37 @@ document.addEventListener('DOMContentLoaded', () => {
       titleRow.appendChild(qualityBadge);
     }
 
-    // Meta row (Tags)
     const metaRow = document.createElement('div');
     metaRow.className = 'channel-card-meta';
 
-    if (channel.group) {
-      const groupBadge = document.createElement('span');
-      groupBadge.className = 'meta-badge category-badge';
-      groupBadge.textContent = channel.group;
-      metaRow.appendChild(groupBadge);
+    if (channel.language) {
+      const langs = channel.language.split(/[;,/]/).map(l => l.trim()).filter(Boolean);
+      langs.forEach(lang => {
+        const langBadge = document.createElement('span');
+        langBadge.className = 'meta-badge category-badge';
+        langBadge.textContent = lang;
+        metaRow.appendChild(langBadge);
+      });
     }
 
     if (channel.country) {
-      const countryBadge = document.createElement('span');
-      countryBadge.className = 'meta-badge category-badge';
-      countryBadge.textContent = channel.country;
-      metaRow.appendChild(countryBadge);
+      const countries = channel.country.split(/[;,/]/).map(c => c.trim()).filter(Boolean);
+      countries.forEach(country => {
+        const countryBadge = document.createElement('span');
+        countryBadge.className = 'meta-badge category-badge';
+        countryBadge.textContent = country.toUpperCase();
+        metaRow.appendChild(countryBadge);
+      });
     }
 
-    if (channel.language) {
-      const langBadge = document.createElement('span');
-      langBadge.className = 'meta-badge category-badge';
-      langBadge.textContent = channel.language;
-      metaRow.appendChild(langBadge);
+    if (channel.group) {
+      const categories = channel.group.split(/[;,/]/).map(c => c.trim()).filter(Boolean);
+      categories.forEach(cat => {
+        const groupBadge = document.createElement('span');
+        groupBadge.className = 'meta-badge category-badge';
+        groupBadge.textContent = cat;
+        metaRow.appendChild(groupBadge);
+      });
     }
 
     if (channel.isGeoBlocked) {
@@ -336,7 +523,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return btn;
   }
 
-  // Append next batch of 15 channels
   function renderNextBatch() {
     const filtered = getFilteredChannels();
     const batch = filtered.slice(currentlyRenderedCount, currentlyRenderedCount + BATCH_SIZE);
@@ -351,7 +537,6 @@ document.addEventListener('DOMContentLoaded', () => {
     channelStatusBar.textContent = `Showing ${currentlyRenderedCount} out of ${filtered.length} channels (Total: ${channels.length})`;
   }
 
-  // Full Reset & Initial 15 Render
   function resetAndRenderChannels() {
     channelsContainer.scrollTop = 0;
     channelsContainer.innerHTML = '';
@@ -361,7 +546,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const totalGeoBlocked = channels.filter(c => c.isGeoBlocked).length;
     const hiddenCount = getHiddenChannelsCount();
 
-    // 1. Update Hidden Badge
     if (hiddenCount > 0) {
       hiddenBadge.style.display = 'inline-block';
       if (showOnlyHidden) {
@@ -376,7 +560,6 @@ document.addEventListener('DOMContentLoaded', () => {
       showOnlyHidden = false;
     }
 
-    // 2. Update Geo-Blocked Badge
     if (totalGeoBlocked > 0) {
       geoBlockedBtn.style.display = 'inline-block';
       geoBlockedBtn.className = 'count-badge geo-badge';
@@ -408,11 +591,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     channelCountBadge.textContent = `Total: ${channels.length}`;
 
-    // Render initial batch of 15 channels
     renderNextBatch();
   }
 
-  // Infinite Scroll Listener - Trigger batch load when reaching bottom
   channelsContainer.addEventListener('scroll', () => {
     const { scrollTop, scrollHeight, clientHeight } = channelsContainer;
     const filtered = getFilteredChannels();
@@ -442,63 +623,91 @@ document.addEventListener('DOMContentLoaded', () => {
     openEpgModalForChannel(contextTargetChannel);
   });
 
-  function openEpgModalForChannel(channel) {
+  // EPG Multi-source Integration Engine with Fuzzy/Loose Fallbacks
+  function fetchAndRenderEpgForChannel(channel, customUrl) {
+    if (!channel) return;
     epgModalTitle.textContent = `📅 EPG: ${channel.name}`;
-    epgModalBody.innerHTML = `<p style="color: #aaa;">Fetching guide data for <strong>${channel.name}</strong> from iptv-org/epg...</p>`;
+    epgModalBody.innerHTML = `<p style="color: #aaa;">Fetching live program schedule for <strong>${channel.name}</strong>...</p>`;
     epgModal.classList.add('open');
 
-    fetch(`https://iptv-org.github.io/epg/guides/us.xml`)
+    const targetUrl = customUrl || (epgUrlInput ? epgUrlInput.value.trim() : 'https://iptv-org.github.io/epg/guides/us.xml');
+
+    fetch(targetUrl)
       .then(res => res.text())
       .then(xmlString => {
         const parser = new DOMParser();
         const xml = parser.parseFromString(xmlString, "text/xml");
         const programmes = Array.from(xml.querySelectorAll('programme'));
         
-        const matchedProgs = programmes.filter(p => {
+        const cleanQueryName = channel.name
+          .replace(/\b(1080p|720p|4K|FHD|HD|SD|HEVC|US|UK|CA|SP|LIVE)\b/gi, '')
+          .replace(/[^a-zA-Z0-9]/g, ' ')
+          .trim()
+          .toLowerCase();
+
+        const searchKeywords = cleanQueryName.split(/\s+/).filter(w => w.length > 2);
+
+        let matchedProgs = programmes.map(p => {
           const title = p.querySelector('title')?.textContent || '';
-          return title.toLowerCase().includes(channel.name.toLowerCase());
-        }).slice(0, 5);
+          const channelAttr = p.getAttribute('channel') || '';
+          const titleLower = title.toLowerCase();
+          
+          let score = 0;
+          if (titleLower.includes(cleanQueryName)) score += 10;
+          searchKeywords.forEach(kw => {
+            if (channelAttr.toLowerCase().includes(kw) || titleLower.includes(kw)) score += 2;
+          });
+
+          return { p, score };
+        }).filter(item => item.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .map(item => item.p)
+          .slice(0, 15);
+
+        if (matchedProgs.length === 0 && programmes.length > 0) {
+          matchedProgs = programmes.slice(0, 10);
+        }
 
         if (matchedProgs.length > 0) {
-          let html = `<table class="epg-table"><thead><tr><th>Time</th><th>Program Title</th></tr></thead><tbody>`;
+          let html = `<p style="font-size: 0.8rem; color: #4caf50; margin-bottom: 8px;">✔ Loaded schedule successfully from feed.</p>`;
+          html += `<table class="epg-table"><thead><tr><th>Time (UTC)</th><th>Program Title & Description</th></tr></thead><tbody>`;
+          
           matchedProgs.forEach(p => {
-            const title = p.querySelector('title')?.textContent || 'N/A';
-            const start = p.getAttribute('start') || 'Now';
-            html += `<tr><td>${start.slice(8, 12) || 'Live'}</td><td>${title}</td></tr>`;
+            const title = p.querySelector('title')?.textContent || 'Live Broadcast';
+            const desc = p.querySelector('desc')?.textContent || 'Live stream broadcast item.';
+            const startStr = p.getAttribute('start') || '';
+            
+            let formattedTime = 'Live / Current';
+            if (startStr.length >= 12) {
+              formattedTime = `${startStr.slice(4,6)}/${startStr.slice(6,8)} - ${startStr.slice(8,10)}:${startStr.slice(10,12)}`;
+            }
+
+            html += `<tr><td><strong>${formattedTime}</strong></td><td><strong>${title}</strong><br><span style="font-size: 0.85rem; color: #aaa;">${desc}</span></td></tr>`;
           });
           html += `</tbody></table>`;
           epgModalBody.innerHTML = html;
         } else {
-          epgModalBody.innerHTML = `<p style="color: #888;">No online EPG data found for "${channel.name}".</p>
-          <p style="font-size: 0.8rem; color: #666; margin-top: 8px;">Source: https://github.com/iptv-org/epg</p>`;
+          epgModalBody.innerHTML = `<p style="color: #e57373;">No program schedules found in this XML feed. Try pasting another public XMLTV EPG link into the box above.</p>`;
         }
       })
-      .catch(() => {
-        epgModalBody.innerHTML = `<p style="color: #e57373;">Unable to load EPG feed online. Check your internet connection or URL source.</p>
-        <p style="font-size: 0.8rem; color: #666; margin-top: 8px;">EPG Repository: https://github.com/iptv-org/epg</p>`;
+      .catch(err => {
+        console.error(err);
+        epgModalBody.innerHTML = `<p style="color: #e57373;">Failed to fetch EPG URL (CORS policy or invalid XML format). Try using a direct raw XMLTV link or a CORS-enabled endpoint.</p>`;
       });
   }
 
-  globalEpgBtn.addEventListener('click', () => {
-    if (channels.length === 0) {
-      alert('Please load a playlist first to view the EPG.');
-      return;
-    }
+  function openEpgModalForChannel(channel) {
+    contextTargetChannel = channel;
+    fetchAndRenderEpgForChannel(channel);
+  }
 
-    epgModalTitle.textContent = `📅 EPG Guide - All Channels`;
-    let html = `<table class="epg-table"><thead><tr><th>Channel</th><th>Current Schedule</th></tr></thead><tbody>`;
-    const filtered = getFilteredChannels().slice(0, 20);
-
-    filtered.forEach(ch => {
-      html += `<tr>
-        <td class="epg-channel-header">${ch.name}</td>
-        <td>Live Broadcast Stream available. Right-click channel for detailed online EPG.</td>
-      </tr>`;
+  if (loadCustomEpgBtn) {
+    loadCustomEpgBtn.addEventListener('click', () => {
+      if (contextTargetChannel) {
+        fetchAndRenderEpgForChannel(contextTargetChannel, epgUrlInput ? epgUrlInput.value.trim() : null);
+      }
     });
-    html += `</tbody></table>`;
-    epgModalBody.innerHTML = html;
-    epgModal.classList.add('open');
-  });
+  }
 
   hiddenBadge.addEventListener('click', () => {
     showOnlyHidden = !showOnlyHidden;
@@ -522,18 +731,28 @@ document.addEventListener('DOMContentLoaded', () => {
     activeChannelIndex = index;
     spinner.style.display = 'flex';
 
+    setChannelRouting('normal');
+
     if (hlsInstance) {
       hlsInstance.destroy();
       hlsInstance = null;
     }
 
-    if (Hls.isSupported() && channel.url.includes('.m3u8')) {
-      hlsInstance = new Hls();
+    if (Hls.isSupported() && (channel.url.includes('.m3u8') || channel.url.includes('.ts') || !channel.url.includes('.'))) {
+      hlsInstance = new Hls({
+        renderTextTracksNatively: false,
+        enableWorker: true,
+        enableSoftwareAES: true
+      });
+
       hlsInstance.loadSource(channel.url);
       hlsInstance.attachMedia(videoPlayer);
 
+      hlsInstance.on(Hls.Events.AUDIO_TRACKS_UPDATED, scanAndPopulateAudioTracks);
+
       hlsInstance.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
         spinner.style.display = 'none';
+        scanAndPopulateAudioTracks();
 
         if (settings.preferredQuality !== 'auto' && data.levels.length > 0) {
           const targetHeight = parseInt(settings.preferredQuality, 10);
@@ -558,13 +777,31 @@ document.addEventListener('DOMContentLoaded', () => {
         videoPlayer.play().catch(() => {});
       });
 
-      hlsInstance.on(Hls.Events.ERROR, () => {
-        spinner.style.display = 'none';
+      hlsInstance.on(Hls.Events.FRAG_PARSED, scanAndPopulateAudioTracks);
+      hlsInstance.on(Hls.Events.LEVEL_SWITCHED, scanAndPopulateAudioTracks);
+
+      hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          spinner.style.display = 'none';
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              hlsInstance.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              hlsInstance.recoverMediaError();
+              break;
+            default:
+              videoPlayer.src = channel.url;
+              videoPlayer.play().catch(() => {});
+              break;
+          }
+        }
       });
     } else {
       videoPlayer.src = channel.url;
       videoPlayer.play().then(() => {
         spinner.style.display = 'none';
+        scanAndPopulateAudioTracks();
       }).catch(() => {
         spinner.style.display = 'none';
       });
